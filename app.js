@@ -74,7 +74,9 @@ async function connectBike() {
   try {
     if (bike.device) await bike.connect(); else await bike.choose();
   } catch (e) {
-    if (e.name !== 'NotFoundError') toast('No se pudo conectar: ' + e.message);
+    bike._log('Error al conectar: ' + e.name + ' ' + e.message);
+    if (e.name === 'NotFoundError' && /cancel/i.test(e.message)) toast('Búsqueda cancelada');
+    else toast('No se pudo conectar: ' + (e.message || e.name));
   }
   connecting = false; connLabel();
 }

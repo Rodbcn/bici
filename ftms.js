@@ -72,8 +72,9 @@ class FtmsBike extends EventTarget {
 
   async choose() {
     this.device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [FTMS.SERVICE] }],
-      optionalServices: ['device_information'],
+      // Muchas bicis no anuncian el servicio FTMS hasta conectar: buscamos también por nombre.
+      filters: [{ services: [FTMS.SERVICE] }, { namePrefix: 'ADIDAS' }, { namePrefix: 'adidas' }, { namePrefix: 'Adidas' }],
+      optionalServices: [FTMS.SERVICE, 'device_information'],
     });
     this.device.addEventListener('gattserverdisconnected', () => this._onDisconnect());
     await this.connect();
