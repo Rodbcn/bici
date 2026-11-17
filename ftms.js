@@ -224,7 +224,8 @@ class FtmsBike extends EventTarget {
 
   clampLevel(l) {
     const { min, max } = this.range || { min: 1, max: 32 };
-    return Math.max(min, Math.min(max, Math.round(l)));
+    if (!Number.isFinite(+l)) return min;
+    return Math.max(min, Math.min(max, Math.round(+l)));
   }
 
   // Fija el nivel de resistencia (en niveles de la bici).

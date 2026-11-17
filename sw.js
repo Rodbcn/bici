@@ -1,5 +1,5 @@
 // Red primero (para recibir actualizaciones), caché si no hay conexión.
-const CACHE = 'bici-v6';
+const CACHE = 'bici-v7';
 const FILES = ['./', 'index.html', 'style.css', 'iconsole.js', 'ftms.js', 'workouts.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
@@ -7,8 +7,9 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(fetch(e.request, { cache: 'no-cache' }).then(r => {
+    if (!r.ok || r.type !== 'basic') return r;
     const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r;
   }).catch(() => caches.match(e.request, { ignoreSearch: true })));
 });

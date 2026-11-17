@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -12,8 +12,19 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 const settings = Object.assign({ beep: true }, store.get('settings', {}));
-const allWorkouts = () => BUILTIN.concat(store.get('custom', []));
-const minutesFor = (w) => store.get('durations', {})[w.id] || baseMinutes(w);
+// Los datos guardados se validan al leerlos: el almacenamiento de rodbcn.github.io
+// lo comparten todas las webs de GitHub Pages de la cuenta.
+const num = (x, lo, hi, d) => (Number.isFinite(+x) ? Math.min(hi, Math.max(lo, +x)) : d);
+function cleanWorkout(w) {
+  if (!w || typeof w !== 'object' || !Array.isArray(w.segs) || !w.segs.length) return null;
+  const segs = w.segs.slice(0, 100).filter(Array.isArray).map(s => [num(s[0], 0.25, 240, 5), Math.round(num(s[1], 1, 100, 1))]);
+  if (!segs.length) return null;
+  return { id: String(w.id || 'c' + Date.now()).slice(0, 40), name: String(w.name || 'Mi entrenamiento').slice(0, 40),
+    kind: 'scale', absolute: true, custom: true, segs };
+}
+const customWorkouts = () => { const c = store.get('custom', []); return Array.isArray(c) ? c.map(cleanWorkout).filter(Boolean) : []; };
+const allWorkouts = () => BUILTIN.concat(customWorkouts());
+const minutesFor = (w) => { const d = store.get('durations', {}); const m = d && d[w.id]; return Number.isFinite(m) && m >= 5 && m <= 240 ? m : baseMinutes(w); };
 
 // ---------- Utilidades UI ----------
 function show(id) {
@@ -62,9 +73,9 @@ function connLabel() {
     b.className = 'conn off'; b.textContent = 'Conectar bici';
   }
   const rc = $('rConn');
-  rc.innerHTML = bike.connected
-    ? `<span class="dot"></span>${bike.device.name || 'Bici'}`
-    : `<span class="dot bad"></span>${connecting ? 'Conectando…' : 'Sin bici · toca'}`;
+  // El nombre lo anuncia el dispositivo Bluetooth: nunca como HTML.
+  const dot = document.createElement('span'); dot.className = bike.connected ? 'dot' : 'dot bad';
+  rc.replaceChildren(dot, bike.connected ? (bike.device.name || 'Bici') : (connecting ? 'Conectando…' : 'Sin bici · toca'));
 }
 let connecting = false;
 
@@ -266,7 +277,8 @@ function loop() {
     const s = ride.segs[i], nx = ride.segs[i + 1];
     $('rSegLabel').textContent = (s.label.startsWith('Tramo') ? '' : s.label + ' · ') + `tramo ${i + 1} de ${ride.segs.length} · nivel`;
     $('rCd').textContent = fmt(left);
-    $('rNext').innerHTML = nx ? `Siguiente: <b>nivel ${bike.clampLevel(nx.lvl)} · ${fmt(nx.sec)}</b>` : 'Último tramo';
+    if (nx) { const b = document.createElement('b'); b.textContent = `nivel ${bike.clampLevel(nx.lvl)} · ${fmt(nx.sec)}`; $('rNext').replaceChildren('Siguiente: ', b); }
+    else $('rNext').textContent = 'Último tramo';
     drawBars($('rBars'), ride.segs.map(x => ({ sec: x.sec, level: x.lvl })), { absolute: true }, { cur: i, at: t });
     $('rLeft').textContent = 'quedan ' + fmt(ride.total - t);
     $('rEnd').textContent = fmt(ride.total);
@@ -279,7 +291,7 @@ function loop() {
   $('rLvl').textContent = target;
   $('rLvlMax').textContent = ' / ' + range().max;
   const bl = bike.levelFromRaw(ride.live.resistance);
-  if (bike.connected && bl != null && bl !== target && ride.sinceSet > 4) $('rNext').innerHTML += ` <span style="color:#c62828">· la bici marca ${bl}</span>`;
+  if (bike.connected && bl != null && bl !== target && ride.sinceSet > 4) { const w = document.createElement('span'); w.className = 'warn'; w.textContent = ` · la bici marca ${bl}`; $('rNext').append(' ', w); }
   ride.sinceSet = (target === ride.prevTarget ? (ride.sinceSet || 0) + dt : 0); ride.prevTarget = target;
   if (!ride.paused) sendLevel();
 }
@@ -343,19 +355,27 @@ function finishRide(save) {
     avgW: r.n ? Math.round(r.powSum / r.n) : 0, maxW: Math.max(0, r.maxPow),
     avgRpm: r.n ? Math.round(r.cadSum / r.n) : 0, avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : 0,
   };
-  const h = store.get('history', []); h.unshift(entry); store.set('history', h.slice(0, 500));
+  const h = historyList(); h.unshift(entry); store.set('history', h.slice(0, 500));
   const g = $('sumGrid'); g.innerHTML = '';
   [['Tiempo', fmt(entry.sec), ''], ['Distancia', entry.km.toFixed(2), 'km'], ['Calorías', entry.kcal, 'kcal'],
    ['Potencia media', entry.avgW, 'W'], ['Potencia máx.', entry.maxW, 'W'], ['Cadencia media', entry.avgRpm, 'rpm']]
     .concat(entry.avgHr ? [['Pulso medio', entry.avgHr, 'ppm']] : [])
-    .forEach(([l, v, u]) => { const d = document.createElement('div'); d.className = 'm'; d.innerHTML = `<div class="l">${l}</div><div class="v">${v} <span class="u">${u}</span></div>`; g.appendChild(d); });
+    .forEach(([l, v, u]) => { const d = document.createElement('div'); d.className = 'm'; const el = (c, t) => { const x = document.createElement(c === 'u' ? 'span' : 'div'); x.className = c; x.textContent = t; return x; }; const vv = el('v', v + ' '); vv.append(el('u', u)); d.append(el('l', l), vv); g.appendChild(d); });
   show('summary');
 }
 
 // ---------- Historial ----------
+function historyList() {
+  const h = store.get('history', []);
+  return Array.isArray(h) ? h.filter(e => e && typeof e === 'object').map(e => ({
+    date: String(e.date), name: String(e.name ?? '').slice(0, 40), sec: num(e.sec, 0, 1e6, 0), km: num(e.km, 0, 1e4, 0),
+    kcal: num(e.kcal, 0, 1e5, 0), avgW: num(e.avgW, 0, 5000, 0), maxW: num(e.maxW, 0, 5000, 0),
+    avgRpm: num(e.avgRpm, 0, 500, 0), avgHr: num(e.avgHr, 0, 300, 0),
+  })) : [];
+}
 function renderHistory() {
   const list = $('histList'); list.innerHTML = '';
-  const h = store.get('history', []);
+  const h = historyList();
   if (!h.length) { list.innerHTML = '<div class="empty">Aún no hay entrenamientos</div>'; return; }
   h.forEach((e, idx) => {
     const d = document.createElement('div'); d.className = 'h';
@@ -403,7 +423,7 @@ function renderEditorBars() {
 $('eAdd').addEventListener('click', () => { const l = eSegs[eSegs.length - 1]; eSegs.push(l ? [...l] : [5, 8]); renderEditor(); });
 $('eSave').addEventListener('click', () => {
   const name = $('eName').value.trim() || 'Mi entrenamiento';
-  const custom = store.get('custom', []);
+  const custom = customWorkouts();
   const w = { id: editing ? editing.id : 'c' + Date.now(), name, kind: 'scale', absolute: true, custom: true, segs: eSegs };
   const i = custom.findIndex(x => x.id === w.id);
   if (i >= 0) custom[i] = w; else custom.push(w);
@@ -413,7 +433,7 @@ $('eSave').addEventListener('click', () => {
 });
 $('eDelete').addEventListener('click', () => {
   if (!editing || !confirm('¿Borrar este entrenamiento?')) return;
-  store.set('custom', store.get('custom', []).filter(x => x.id !== editing.id));
+  store.set('custom', customWorkouts().filter(x => x.id !== editing.id));
   show('home');
 });
 

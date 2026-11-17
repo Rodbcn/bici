@@ -102,7 +102,7 @@ class IConsole {
     } else if (code === 0xb1) {
       this.maxLevel = d[4];
       this.bike._log(`iConsole: nivel máximo ${this.maxLevel}`);
-      if (this.maxLevel > 0) this.bike.range = { min: 1, max: this.maxLevel, inc: 1 };
+      if (this.maxLevel > 0 && this.maxLevel <= 64) this.bike.range = { min: 1, max: this.maxLevel, inc: 1 };
       this.bike.dispatchEvent(new Event('range'));
     } else if (code === 0xb6) {
       this.level = d[4];
@@ -137,7 +137,9 @@ class IConsole {
   pause() { this._send(IC.STATE, [2]); }
   resume() { this._send(IC.STATE, [1]); }
   finish() { this._send(IC.STATE, [2]); this.running = false; }
-  setLevel(l) { this.target = l; this._send(IC.LEVEL, [l]); return true; }
+  setLevel(l) {
+    l = this.bike.clampLevel(l);
+    this.target = l; this._send(IC.LEVEL, [l]); return true; }
 }
 
 function h2(x) { return x.toString(16).padStart(2, '0'); }
