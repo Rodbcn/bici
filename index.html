@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Bici</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- INICIO -->
+<section id="home" class="screen active">
+  <h1>Entrenamientos</h1>
+  <button id="connBtn" class="conn off">Conectar bici</button>
+  <div id="workoutList"></div>
+  <button class="dashed" id="newWorkoutBtn">+ Crear entrenamiento</button>
+  <button class="dashed" id="freeRideBtn">Rodar libre (sin programa)</button>
+  <div class="btns bottom">
+    <button class="b" data-go="history">Historial</button>
+    <button class="b" data-go="settings">Ajustes</button>
+  </div>
+</section>
+
+<!-- ELEGIR DURACIÓN -->
+<section id="detail" class="screen">
+  <button class="back" data-go="home">‹ Entrenamientos</button>
+  <h1 id="dTitle"></h1>
+  <div class="label pad">Duración</div>
+  <div class="chips" id="dChips"></div>
+  <div class="stepper">
+    <button class="sb" id="dMinus">−5</button><div class="sv" id="dVal"></div><button class="sb" id="dPlus">+5</button>
+  </div>
+  <div class="card prof">
+    <div class="label">Así quedan los tramos</div>
+    <div class="bars static" id="dBars"></div>
+    <div class="times"><span>0:00</span><span id="dCount"></span><span id="dEnd"></span></div>
+  </div>
+  <div class="tl" id="dList"></div>
+  <div class="btns bottom">
+    <button class="b" id="dEdit" hidden>Editar</button>
+    <button class="b p" id="dStart">▶ Empezar</button>
+  </div>
+</section>
+
+<!-- ENTRENANDO -->
+<section id="ride" class="screen">
+  <div class="top"><span id="rConn"><span class="dot"></span>—</span><span id="rName"></span><span id="rHr"></span></div>
+  <div class="card seg">
+    <div class="label" id="rSegLabel"></div>
+    <div class="segrow"><div class="lvl"><span id="rLvl">–</span><small id="rLvlMax"></small></div><div class="cd" id="rCd"></div></div>
+    <div class="next" id="rNext"></div>
+  </div>
+  <div class="grid">
+    <div class="m"><div class="l">Potencia</div><div class="v"><span id="mPow">–</span> <span class="u">W</span></div></div>
+    <div class="m"><div class="l">Cadencia</div><div class="v"><span id="mCad">–</span> <span class="u">rpm</span></div></div>
+    <div class="m"><div class="l">Velocidad</div><div class="v"><span id="mSpd">–</span> <span class="u">km/h</span></div></div>
+    <div class="m"><div class="l">Distancia</div><div class="v"><span id="mDist">–</span> <span class="u">km</span></div></div>
+    <div class="m"><div class="l">Calorías</div><div class="v"><span id="mKcal">–</span> <span class="u">kcal</span></div></div>
+    <div class="m"><div class="l">Tiempo</div><div class="v" id="mTime">0:00</div></div>
+  </div>
+  <div class="card prof" id="rProf">
+    <div class="label">Perfil</div>
+    <div class="bars" id="rBars"></div>
+    <div class="times"><span>0:00</span><span id="rLeft"></span><span id="rEnd"></span></div>
+  </div>
+  <div class="btns bottom">
+    <button class="b" id="lvlDown">− Nivel</button>
+    <button class="b p" id="pauseBtn">❚❚ Pausa</button>
+    <button class="b" id="lvlUp">+ Nivel</button>
+  </div>
+  <div class="sheet" id="pauseSheet" hidden>
+    <div class="sheetbox">
+      <h2>En pausa</h2>
+      <button class="b p" id="resumeBtn">▶ Reanudar</button>
+      <button class="b" id="finishBtn">Terminar y guardar</button>
+      <button class="b danger" id="discardBtn">Descartar</button>
+    </div>
+  </div>
+</section>
+
+<!-- RESUMEN -->
+<section id="summary" class="screen">
+  <h1>¡Hecho!</h1>
+  <div class="grid" id="sumGrid"></div>
+  <div class="btns bottom"><button class="b p" data-go="home">Volver</button></div>
+</section>
+
+<!-- HISTORIAL -->
+<section id="history" class="screen">
+  <button class="back" data-go="home">‹ Entrenamientos</button>
+  <h1>Historial</h1>
+  <div id="histList"></div>
+</section>
+
+<!-- EDITOR -->
+<section id="editor" class="screen">
+  <button class="back" data-go="home">‹ Entrenamientos</button>
+  <h1 id="eTitle">Nuevo entrenamiento</h1>
+  <input id="eName" class="input" placeholder="Nombre" maxlength="40">
+  <div class="card prof"><div class="bars static" id="eBars"></div><div class="times"><span id="eInfo"></span></div></div>
+  <div id="eSegs"></div>
+  <button class="dashed" id="eAdd">+ Añadir tramo</button>
+  <div class="btns bottom">
+    <button class="b danger" id="eDelete" hidden>Borrar</button>
+    <button class="b p" id="eSave">Guardar</button>
+  </div>
+</section>
+
+<!-- AJUSTES -->
+<section id="settings" class="screen">
+  <button class="back" data-go="home">‹ Entrenamientos</button>
+  <h1>Ajustes</h1>
+  <label class="row"><span>Pitido al cambiar de tramo</span><input type="checkbox" id="sBeep"></label>
+  <div class="label pad">Bici</div>
+  <pre class="diag" id="sDiag">Sin conectar</pre>
+  <div class="label pad">Probar resistencia</div>
+  <div class="stepper"><button class="sb" id="tMinus">−</button><div class="sv" id="tVal">5</div><button class="sb" id="tPlus">+</button></div>
+  <button class="b wide" id="tSend">Enviar nivel a la bici</button>
+  <pre class="diag" id="sLog"></pre>
+</section>
+
+<div id="toast" hidden></div>
+<script src="ftms.js"></script>
+<script src="workouts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
