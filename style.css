@@ -90,3 +90,4 @@ h2{font-size:22px;margin-bottom:12px}
 .diag:empty{display:none}
 
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--text);color:#fff;padding:12px 18px;border-radius:14px;font-size:14px;z-index:20;max-width:90%}
+.connmsg{background:#fdecea;color:var(--bad);border-radius:14px;padding:12px 16px;font-size:14px;margin:-8px 0 16px}

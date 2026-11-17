@@ -1,4 +1,5 @@
 'use strict';
+const APP_VERSION = '3';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -67,19 +68,33 @@ function connLabel() {
 }
 let connecting = false;
 
+function browserProblem() {
+  const ua = navigator.userAgent;
+  if (!window.isSecureContext) return 'La página no se abrió con https.';
+  if (/SamsungBrowser/i.test(ua)) return 'Estás en Samsung Internet, que no permite Bluetooth. Abre el enlace en Chrome.';
+  if (/FBAN|FBAV|Instagram|WhatsApp|; wv\)/i.test(ua)) return 'Estás en el navegador interno de otra app. Abre el enlace en Chrome.';
+  if (!navigator.bluetooth) return 'Este navegador no permite Bluetooth. Abre el enlace en Chrome.';
+  return null;
+}
+
+// Al tocar: siempre abre el selector de Chrome (necesita el gesto del usuario).
 async function connectBike() {
-  if (bike.connected || connecting) return;
-  if (!FtmsBike.supported()) { toast('Este navegador no tiene Bluetooth web. Usa Chrome en Android.'); return; }
+  if (bike.connected) return;
+  const p = browserProblem();
+  if (p) { setConnMsg(p); toast(p); return; }
+  setConnMsg('');
   connecting = true; connLabel();
   try {
-    if (bike.device) await bike.connect(); else await bike.choose();
+    await bike.choose();
   } catch (e) {
     bike._log('Error al conectar: ' + e.name + ' ' + e.message);
-    if (e.name === 'NotFoundError' && /cancel/i.test(e.message)) toast('Búsqueda cancelada');
-    else toast('No se pudo conectar: ' + (e.message || e.name));
+    const m = e.name === 'NotFoundError' && /cancel/i.test(e.message) ? 'Búsqueda cancelada'
+      : 'No se pudo conectar: ' + (e.message || e.name);
+    setConnMsg(m); toast(m);
   }
   connecting = false; connLabel();
 }
+function setConnMsg(m) { const el = $('connMsg'); el.textContent = m; el.hidden = !m; }
 $('connBtn').addEventListener('click', connectBike);
 $('rConn').addEventListener('click', connectBike);
 
@@ -89,7 +104,7 @@ bike.addEventListener('connected', () => {
   if (ride && !ride.paused) bike.setLevel(currentTarget()).catch(() => {});
 });
 bike.addEventListener('disconnected', () => { connLabel(); if (ride) toast('Bici desconectada, reintentando…'); });
-bike.addEventListener('connecting', () => { connecting = true; connLabel(); });
+
 bike.addEventListener('log', () => { if ($('settings').classList.contains('active')) $('sLog').textContent = bike.log.join('\n'); });
 
 // ---------- Inicio ----------
@@ -409,7 +424,7 @@ function renderSettings() {
     bike.info.feature && `Features: ${bike.info.feature}`,
     bike.lastRaw && `Último dato: ${bike.lastRaw}`,
   ].filter(Boolean).join('\n') : 'Sin conectar';
-  $('sDiag').textContent = lines;
+  $('sDiag').textContent = `Versión ${APP_VERSION}\nNavegador: ${navigator.userAgent}\nBluetooth web: ${navigator.bluetooth ? 'sí' : 'NO'}\n` + lines;
   $('sLog').textContent = bike.log.join('\n');
   $('tVal').textContent = testLvl;
 }
@@ -426,8 +441,6 @@ setInterval(() => { if ($('settings').classList.contains('active')) renderSettin
 
 // ---------- Arranque ----------
 renderHome();
-if (FtmsBike.supported()) {
-  connecting = true; connLabel();
-  bike.tryRemembered().catch(() => {}).finally(() => { connecting = false; connLabel(); });
-}
+// Reconexión silenciosa a la última bici (no bloquea el botón).
+if (FtmsBike.supported()) bike.tryRemembered().catch(() => {}).finally(() => { connecting = false; connLabel(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
