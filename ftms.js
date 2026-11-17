@@ -74,7 +74,7 @@ class FtmsBike extends EventTarget {
     this.device = await navigator.bluetooth.requestDevice({
       // Muchas bicis no anuncian el servicio FTMS hasta conectar: buscamos también por nombre.
       filters: [{ services: [FTMS.SERVICE] }, { namePrefix: 'ADIDAS' }, { namePrefix: 'adidas' }, { namePrefix: 'Adidas' }],
-      optionalServices: [FTMS.SERVICE, 'device_information'],
+      optionalServices: [FTMS.SERVICE, 0xfff0, 'device_information'],
     });
     this.device.addEventListener('gattserverdisconnected', () => this._onDisconnect());
     await this.connect();
@@ -141,6 +141,7 @@ class FtmsBike extends EventTarget {
 
     const data = await svc.getCharacteristic(FTMS.BIKE_DATA);
     data.addEventListener('characteristicvaluechanged', (ev) => {
+      if (this.mode === 'ic') return; // con iConsole los datos vienen por su canal
       const r = parseBikeData(ev.target.value);
       this.lastRaw = hex(ev.target.value);
       if (r.resistance != null) { this.curLevel = this.levelFromRaw(r.resistance); this._simAdjust(); }
@@ -158,11 +159,28 @@ class FtmsBike extends EventTarget {
     this.ctrl.addEventListener('characteristicvaluechanged', (ev) => this._onCtrlResponse(ev.target.value));
     await this.ctrl.startNotifications();
 
+    // Canal propio iConsole (0xFFF0): el único que mueve la resistencia en la adidas C-24c.
+    if (this.ic) { this.ic.stop(); this.ic = null; }
+    try {
+      const ics = await server.getPrimaryService(0xfff0);
+      const wr = await ics.getCharacteristic(0xfff2);
+      const nt = await ics.getCharacteristic(0xfff1);
+      this.ic = new IConsole(this, wr);
+      nt.addEventListener('characteristicvaluechanged', (ev) => this.ic && this.ic.onNotify(ev.target.value));
+      await nt.startNotifications();
+      this.mode = 'ic';
+      this._log('Usando protocolo iConsole (0xFFF0) para el control');
+    } catch (e) {
+      if (this.ic) { this.ic.stop(); this.ic = null; }
+      this._log('Sin acceso a 0xFFF0: ' + e.name + ' ' + e.message);
+      if (e.name === 'SecurityError') this.needRechoose = true;
+    }
+
     this.connected = true;
     this.hasControl = false;
     this.dispatchEvent(new Event('connected'));
     this._log(`Conectado a ${this.device.name}`);
-    try { await this.requestControl(); } catch (e) { this._log('No se pudo tomar el control: ' + e.message); }
+    if (this.mode !== 'ic') { try { await this.requestControl(); } catch (e) { this._log('No se pudo tomar el control: ' + e.message); } }
   }
 
   _onCtrlResponse(dv) {
@@ -194,9 +212,15 @@ class FtmsBike extends EventTarget {
     return this.hasControl;
   }
 
-  async start() { if (this.connected) { if (!this.hasControl) await this.requestControl(); await this._cmd([0x07]); } }
-  async pause() { if (this.connected) await this._cmd([0x08, 0x02]); }
-  async stop() { if (this.connected) await this._cmd([0x08, 0x01]); }
+  async start() {
+    if (!this.connected) return;
+    if (this.ic) { this.ic.start(); return; }
+    if (!this.hasControl) await this.requestControl();
+    await this._cmd([0x07]);
+  }
+  async pause() { if (!this.connected) return; if (this.ic) return this.ic.pause(); await this._cmd([0x08, 0x02]); }
+  async resume() { if (!this.connected) return; if (this.ic) return this.ic.resume(); await this._cmd([0x07]); }
+  async stop() { if (!this.connected) return; if (this.ic) return this.ic.finish(); await this._cmd([0x08, 0x01]); }
 
   clampLevel(l) {
     const { min, max } = this.range || { min: 1, max: 32 };
@@ -207,6 +231,7 @@ class FtmsBike extends EventTarget {
   async setLevel(level) {
     if (!this.connected) return false;
     level = this.clampLevel(level);
+    if (this.ic) { if (!this.ic.running) this.ic.start(); return this.ic.setLevel(level); }
     if (!this.hasControl) await this.requestControl();
     if (this.mode === 'sim') return this._simSetLevel(level);
     const v = Math.round(level * (this.scale || 10));
@@ -306,6 +331,7 @@ class FtmsBike extends EventTarget {
 
   _onDisconnect() {
     this.connected = false;
+    if (this.ic) { this.ic.stop(); this.ic = null; }
     this.hasControl = false;
     this.ctrl = null;
     if (this._pending) { this._pending.resolve(-1); this._pending = null; }

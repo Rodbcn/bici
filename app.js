@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '5';
+const APP_VERSION = '6';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -79,7 +79,9 @@ function browserProblem() {
 
 // Al tocar: siempre abre el selector de Chrome (necesita el gesto del usuario).
 async function connectBike() {
-  if (bike.connected) return;
+  if (bike.connected && !bike.needRechoose) return;
+  if (bike.connected) await bike.disconnect();
+  bike.needRechoose = false;
   const p = browserProblem();
   if (p) { setConnMsg(p); toast(p); return; }
   setConnMsg('');
@@ -103,6 +105,7 @@ bike.addEventListener('connected', () => {
   if ($('home').classList.contains('active')) renderHome();
   if (ride && !ride.paused) bike.setLevel(currentTarget()).catch(() => {});
 });
+bike.addEventListener('range', () => { connLabel(); if ($('home').classList.contains('active')) renderHome(); });
 bike.addEventListener('disconnected', () => { connLabel(); if (ride) toast('Bici desconectada, reintentando…'); });
 
 bike.addEventListener('log', () => { if ($('settings').classList.contains('active')) $('sLog').textContent = bike.log.join('\n'); });
@@ -316,9 +319,11 @@ $('lvlDown').addEventListener('click', () => nudge(-1));
 $('pauseBtn').addEventListener('click', () => {
   if (!ride) return;
   ride.paused = true; $('pauseSheet').hidden = false;
+  if (bike.connected) Promise.resolve(bike.pause()).catch(() => {});
 });
 $('resumeBtn').addEventListener('click', () => {
   ride.paused = false; ride.last = performance.now(); lastSent = null;
+  if (bike.connected) Promise.resolve(bike.resume()).catch(() => {});
   $('pauseSheet').hidden = true; loop();
 });
 $('finishBtn').addEventListener('click', () => finishRide(true));
@@ -327,6 +332,7 @@ $('discardBtn').addEventListener('click', () => { if (confirm('¿Descartar este 
 function finishRide(save) {
   clearInterval(tick); tick = null;
   const r = ride; ride = null; lastSent = null;
+  if (bike.connected) Promise.resolve(bike.stop()).catch(() => {});
   $('pauseSheet').hidden = true;
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   if (!save || !r || r.elapsed < 30) { show('home'); if (save) toast('Demasiado corto para guardarlo'); return; }
@@ -420,7 +426,9 @@ function renderSettings() {
     bike.info.fabricante && `Fabricante: ${bike.info.fabricante}`, bike.info.modelo && `Modelo: ${bike.info.modelo}`,
     bike.info.firmware && `Firmware: ${bike.info.firmware}`,
     `Niveles: ${range().min}–${range().max}` + (bike.rangeRaw ? ` (bruto ${bike.rangeRaw.min}..${bike.rangeRaw.max}, paso ${bike.rangeRaw.inc})` : ''),
-    `Control: ${bike.hasControl ? 'sí' : 'no'} · modo: ${bike.mode === 'sim' ? 'pendiente simulada' : 'nivel (' + bike.resFormat + ')'}`,
+    `Control: ${bike.mode === 'ic' ? 'iConsole (0xFFF0)' : bike.mode === 'sim' ? 'pendiente simulada (FTMS)' : 'nivel FTMS (' + bike.resFormat + ')'}`,
+    bike.ic && `iConsole: ${bike.ic.ready ? 'listo' : 'esperando respuesta'} · cliente ${bike.ic.cid} · tipo ${bike.ic.mid} · máx ${bike.ic.maxLevel ?? '–'} · nivel ${bike.ic.level ?? '–'} · ${bike.ic.running ? 'en marcha' : 'parado'}`,
+    bike.ic && bike.ic.lastRx && `Última trama iConsole: ${bike.ic.lastRx}`,
     bike.mode === 'sim' && `Objetivo ${bike.target ?? '–'} · bici marca ${bike.curLevel ?? '–'} · pendiente ${bike.grade ?? '–'} %`,
     bike.mode === 'sim' && `Tabla aprendida: ${JSON.stringify(JSON.parse(localStorage.getItem('gradeMap') || '{}'))}`,
     bike.info.feature && `Features: ${bike.info.feature}`,
@@ -442,7 +450,7 @@ $('tSend').addEventListener('click', async () => {
 });
 $('tCal').addEventListener('click', async () => {
   if (!bike.connected) { toast('Conecta primero la bici'); return; }
-  if (bike.mode !== 'sim') { toast('Tu bici acepta niveles directos, no hace falta'); return; }
+  if (bike.mode !== 'sim') { toast('Con el control actual no hace falta calibrar'); return; }
   const b = $('tCal'); b.disabled = true; b.textContent = 'Calibrando…';
   bike._log('Inicio de calibración (pedalea suave)');
   try { await bike.calibrate((g) => { b.textContent = `Calibrando… ${g} %`; }); }
@@ -454,5 +462,8 @@ setInterval(() => { if ($('settings').classList.contains('active')) renderSettin
 // ---------- Arranque ----------
 renderHome();
 // Reconexión silenciosa a la última bici (no bloquea el botón).
-if (FtmsBike.supported()) bike.tryRemembered().catch(() => {}).finally(() => { connecting = false; connLabel(); });
+if (FtmsBike.supported()) bike.tryRemembered().catch(() => {}).finally(() => {
+  connecting = false; connLabel();
+  if (bike.needRechoose) setConnMsg('Toca «Conectar bici» y vuelve a elegir la bici para dar permiso al canal de control de resistencia.');
+});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
