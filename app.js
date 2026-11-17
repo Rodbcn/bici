@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '3';
+const APP_VERSION = '4';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -420,7 +420,9 @@ function renderSettings() {
     bike.info.fabricante && `Fabricante: ${bike.info.fabricante}`, bike.info.modelo && `Modelo: ${bike.info.modelo}`,
     bike.info.firmware && `Firmware: ${bike.info.firmware}`,
     `Niveles: ${range().min}–${range().max}` + (bike.rangeRaw ? ` (bruto ${bike.rangeRaw.min}..${bike.rangeRaw.max}, paso ${bike.rangeRaw.inc})` : ''),
-    `Control: ${bike.hasControl ? 'sí' : 'no'} · formato resistencia: ${bike.resFormat}`,
+    `Control: ${bike.hasControl ? 'sí' : 'no'} · modo: ${bike.mode === 'sim' ? 'pendiente simulada' : 'nivel (' + bike.resFormat + ')'}`,
+    bike.mode === 'sim' && `Objetivo ${bike.target ?? '–'} · bici marca ${bike.curLevel ?? '–'} · pendiente ${bike.grade ?? '–'} %`,
+    bike.mode === 'sim' && `Tabla aprendida: ${JSON.stringify(JSON.parse(localStorage.getItem('gradeMap') || '{}'))}`,
     bike.info.feature && `Features: ${bike.info.feature}`,
     bike.lastRaw && `Último dato: ${bike.lastRaw}`,
   ].filter(Boolean).join('\n') : 'Sin conectar';
@@ -434,8 +436,16 @@ $('tPlus').addEventListener('click', () => { testLvl = bike.clampLevel(testLvl +
 $('tSend').addEventListener('click', async () => {
   if (!bike.connected) { toast('Conecta primero la bici'); return; }
   const ok = await bike.setLevel(testLvl);
-  toast(ok ? `Nivel ${testLvl} enviado` : 'La bici no aceptó el nivel (mira el registro)');
+  toast(!ok ? 'La bici no aceptó el nivel (mira el registro)'
+    : bike.mode === 'sim' ? `Buscando nivel ${testLvl}… mira «bici marca» arriba` : `Nivel ${testLvl} enviado`);
   renderSettings();
+});
+$('tCal').addEventListener('click', async () => {
+  if (!bike.connected) { toast('Conecta primero la bici'); return; }
+  if (bike.mode !== 'sim') { toast('Tu bici acepta niveles directos, no hace falta'); return; }
+  const b = $('tCal'); b.disabled = true;
+  await bike.calibrate((g) => { b.textContent = `Calibrando… ${g} %`; });
+  b.textContent = 'Calibrar (≈1 min)'; b.disabled = false; toast('Calibración terminada'); renderSettings();
 });
 setInterval(() => { if ($('settings').classList.contains('active')) renderSettings(); }, 1000);
 

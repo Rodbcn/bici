@@ -126,6 +126,10 @@ class FtmsBike extends EventTarget {
     try {
       const dv = await (await svc.getCharacteristic(FTMS.FEATURE)).readValue();
       this.info.feature = hex(dv);
+      const tf = dv.byteLength >= 8 ? dv.getUint32(4, true) : 0;
+      // Bit 2: nivel de resistencia directo. Bit 13: simulación (pendiente), lo único que acepta la adidas C-24c.
+      this.mode = (tf & 0x0004) ? 'res' : (tf & 0x2000) ? 'sim' : 'res';
+      this._log(`Control por ${this.mode === 'sim' ? 'pendiente simulada' : 'nivel de resistencia'} (target features ${tf.toString(16)})`);
     } catch (e) {}
     try {
       const dis = await server.getPrimaryService('device_information');
@@ -139,6 +143,7 @@ class FtmsBike extends EventTarget {
     data.addEventListener('characteristicvaluechanged', (ev) => {
       const r = parseBikeData(ev.target.value);
       this.lastRaw = hex(ev.target.value);
+      if (r.resistance != null) { this.curLevel = this.levelFromRaw(r.resistance); this._simAdjust(); }
       this.dispatchEvent(new CustomEvent('data', { detail: r }));
     });
     await data.startNotifications();
@@ -203,6 +208,7 @@ class FtmsBike extends EventTarget {
     if (!this.connected) return false;
     level = this.clampLevel(level);
     if (!this.hasControl) await this.requestControl();
+    if (this.mode === 'sim') return this._simSetLevel(level);
     const v = Math.round(level * (this.scale || 10));
     const send = async (fmt) => fmt === 'u8'
       ? this._cmd([0x04, Math.min(255, v) & 0xff])
@@ -215,6 +221,75 @@ class FtmsBike extends EventTarget {
       if (r2 === 1) { this.resFormat = alt; localStorage.setItem('resFormat', alt); this._log('Formato de resistencia: ' + alt); r = 1; }
     }
     return r === 1;
+  }
+
+  // ---- Modo simulación: la bici convierte la pendiente en nivel; buscamos la pendiente de cada nivel ----
+  _gradeMap() { try { return JSON.parse(localStorage.getItem('gradeMap') || '{}'); } catch (e) { return {}; } }
+
+  _gradeGuess(level) {
+    const m = this._gradeMap();
+    if (m[level] != null) return m[level];
+    const ks = Object.keys(m).map(Number).sort((a, b) => a - b);
+    const lo = ks.filter(k => k < level).pop(), hi = ks.find(k => k > level);
+    if (lo != null && hi != null) return m[lo] + (m[hi] - m[lo]) * (level - lo) / (hi - lo);
+    if (lo != null) return m[lo] + (level - lo) * 1;
+    if (hi != null) return m[hi] - (hi - level) * 1;
+    return (level - 1) * 0.7;
+  }
+
+  async sendGrade(grade) {
+    grade = Math.max(-30, Math.min(40, Math.round(grade * 100) / 100));
+    this.grade = grade;
+    this._lastSimT = performance.now();
+    const g = Math.round(grade * 100);
+    // viento 0 m/s, pendiente (0,01 %), Crr 0,004, Cw 0,51
+    return this._cmd([0x11, 0, 0, g & 0xff, (g >> 8) & 0xff, 40, 51]);
+  }
+
+  async _simSetLevel(level) {
+    this.target = level;
+    this._step = 2; this._lastDir = 0;
+    const r = await this.sendGrade(this._gradeGuess(level));
+    return r === 1;
+  }
+
+  // Corrección en bucle cerrado: compara el nivel que informa la bici con el objetivo.
+  _simAdjust() {
+    if (this.mode !== 'sim' || this.target == null || this._busySim || this._calibrating) return;
+    const cur = this.curLevel, t = this.target;
+    if (cur == null) return;
+    if (cur === t) {
+      const m = this._gradeMap();
+      if (m[t] !== this.grade) { m[t] = this.grade; localStorage.setItem('gradeMap', JSON.stringify(m)); }
+      return;
+    }
+    if (performance.now() - (this._lastSimT || 0) < 1500) return;
+    const dir = Math.sign(t - cur);
+    if (this._lastDir && dir !== this._lastDir) this._step = Math.max(0.1, this._step / 2);
+    this._lastDir = dir;
+    const next = this.grade + dir * this._step * Math.min(3, Math.abs(t - cur));
+    if ((next >= 40 && dir > 0) || (next <= -30 && dir < 0)) return;
+    this._busySim = true;
+    this.sendGrade(next).finally(() => { this._busySim = false; });
+  }
+
+  // Barrido de pendientes para ver qué nivel da cada una (diagnóstico).
+  async calibrate(onStep) {
+    this._calibrating = true;
+    const out = [];
+    try {
+      for (let g = -10; g <= 30; g += 2) {
+        await this.sendGrade(g);
+        await new Promise(r => setTimeout(r, 2500));
+        out.push([g, this.curLevel]);
+        this._log(`Pendiente ${g}% → nivel ${this.curLevel}`);
+        if (onStep) onStep(g);
+      }
+      const m = {};
+      for (const [g, l] of out) if (l != null && m[l] == null) m[l] = g;
+      localStorage.setItem('gradeMap', JSON.stringify(Object.assign(this._gradeMap(), m)));
+    } finally { this._calibrating = false; }
+    return out;
   }
 
   // Convierte el nivel que informa la bici en Indoor Bike Data a niveles.
