@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '4';
+const APP_VERSION = '5';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -443,8 +443,10 @@ $('tSend').addEventListener('click', async () => {
 $('tCal').addEventListener('click', async () => {
   if (!bike.connected) { toast('Conecta primero la bici'); return; }
   if (bike.mode !== 'sim') { toast('Tu bici acepta niveles directos, no hace falta'); return; }
-  const b = $('tCal'); b.disabled = true;
-  await bike.calibrate((g) => { b.textContent = `Calibrando… ${g} %`; });
+  const b = $('tCal'); b.disabled = true; b.textContent = 'Calibrando…';
+  bike._log('Inicio de calibración (pedalea suave)');
+  try { await bike.calibrate((g) => { b.textContent = `Calibrando… ${g} %`; }); }
+  catch (e) { bike._log('Error calibrando: ' + e.message); }
   b.textContent = 'Calibrar (≈1 min)'; b.disabled = false; toast('Calibración terminada'); renderSettings();
 });
 setInterval(() => { if ($('settings').classList.contains('active')) renderSettings(); }, 1000);
