@@ -9,13 +9,14 @@
 <title>Bici</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
 <!-- INICIO -->
 <section id="home" class="screen active">
   <h1>Entrenamientos</h1>
+  <div class="users" id="userRow"></div>
   <button id="connBtn" class="conn off">Conectar bici</button>
   <div id="connMsg" class="connmsg" hidden></div>
   <div id="workoutList"></div>
@@ -62,7 +63,7 @@
     <div class="m"><div class="l">Velocidad</div><div class="v"><span id="mSpd">–</span> <span class="u">km/h</span></div></div>
     <div class="m"><div class="l">Distancia</div><div class="v"><span id="mDist">–</span> <span class="u">km</span></div></div>
     <div class="m"><div class="l">Calorías</div><div class="v"><span id="mKcal">–</span> <span class="u">kcal</span></div></div>
-    <div class="m"><div class="l">Pulso</div><div class="v"><span id="mHr">–</span> <span class="u">ppm</span></div></div>
+    <div class="m" id="mHrBox"><div class="l">Pulso</div><div class="v"><span id="mHr">–</span> <span class="u">ppm</span></div></div>
   </div>
   <div class="card prof" id="rProf">
     <div class="label">Perfil</div>
@@ -95,7 +96,26 @@
 <section id="history" class="screen">
   <button class="back" data-go="home">‹ Entrenamientos</button>
   <h1>Historial</h1>
+  <div class="users" id="histFilter"></div>
   <div id="histList"></div>
+</section>
+
+<!-- USUARIO -->
+<section id="user" class="screen">
+  <button class="back" data-go="home">‹ Entrenamientos</button>
+  <h1 id="uTitle">Nuevo usuario</h1>
+  <p class="hint" id="uHint" hidden>Crea tu usuario para empezar. El historial que ya tienes pasará a este usuario.</p>
+  <input id="uName" class="input" placeholder="Nombre" maxlength="20" autocomplete="off">
+  <div class="f3">
+    <label><span class="fl">Edad</span><input id="uAge" class="input" type="number" inputmode="numeric" min="5" max="100"></label>
+    <label><span class="fl">Peso (kg)</span><input id="uWeight" class="input" type="number" inputmode="decimal" min="20" max="250" step="0.1"></label>
+    <label><span class="fl">Altura (cm)</span><input id="uHeight" class="input" type="number" inputmode="numeric" min="100" max="230"></label>
+  </div>
+  <div class="hrbox" id="uHr"></div>
+  <div class="btns bottom">
+    <button class="b danger" id="uDelete" hidden>Borrar</button>
+    <button class="b p" id="uSave">Guardar</button>
+  </div>
 </section>
 
 <!-- EDITOR -->
@@ -127,9 +147,9 @@
 </section>
 
 <div id="toast" hidden></div>
-<script src="iconsole.js?v=8"></script>
-<script src="ftms.js?v=8"></script>
-<script src="workouts.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="iconsole.js?v=9"></script>
+<script src="ftms.js?v=9"></script>
+<script src="workouts.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

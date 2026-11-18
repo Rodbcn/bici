@@ -61,6 +61,21 @@ h2{font-size:22px;margin-bottom:12px}
 .lvl small{font-size:16px;color:var(--muted);font-weight:600;margin-left:4px}
 .cd{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums}
 .cdbox{text-align:right}
+.users{display:flex;gap:8px;margin:-4px 0 12px;overflow-x:auto;padding-bottom:2px}
+.uchip{padding:10px 16px;border-radius:999px;background:var(--card);font-weight:700;white-space:nowrap;-webkit-user-select:none;user-select:none}
+.uchip.on{background:var(--acc);color:#fff}
+.uchip.add{color:var(--muted)}
+.hint{font-size:14px;color:var(--muted);margin:-6px 4px 14px}
+.f3{display:flex;gap:8px}
+.f3 label{flex:1;min-width:0}
+.fl{display:block;font-size:13px;color:var(--muted);margin:0 4px 6px}
+.hrbox{background:var(--card);border-radius:16px;padding:12px 16px;margin-bottom:12px;font-size:14px;line-height:1.5}
+.hrbox:empty{display:none}
+.who{font-size:12px;font-weight:700;color:var(--acc);margin-right:6px}
+.m.amber{background:#ffe9b3}
+.m.amber .v,.m.amber .l,.m.amber .u{color:#7a4b00}
+.m.red{background:var(--bad)}
+.m.red .v,.m.red .l,.m.red .u{color:#fff}
 .tot{font-size:20px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
 .next{font-size:13px;color:var(--muted);margin-top:8px;min-height:1em}
 .next b{color:var(--text)}
@@ -94,3 +109,4 @@ h2{font-size:22px;margin-bottom:12px}
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--text);color:#fff;padding:12px 18px;border-radius:14px;font-size:14px;z-index:20;max-width:90%}
 .connmsg{background:#fdecea;color:var(--bad);border-radius:14px;padding:12px 16px;font-size:14px;margin:-8px 0 16px}
 .warn{color:var(--bad)}
+.users[hidden]{display:none}

@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '8';
+const APP_VERSION = '9';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -24,6 +24,24 @@ function cleanWorkout(w) {
 }
 const customWorkouts = () => { const c = store.get('custom', []); return Array.isArray(c) ? c.map(cleanWorkout).filter(Boolean) : []; };
 const allWorkouts = () => BUILTIN.concat(customWorkouts());
+// ---------- Usuarios ----------
+function cleanUser(u) {
+  if (!u || typeof u !== 'object') return null;
+  const name = String(u.name ?? '').trim().slice(0, 20);
+  if (!name) return null;
+  return { id: String(u.id || 'u' + Date.now()).slice(0, 40), name,
+    age: Math.round(num(u.age, 5, 100, 40)), weight: num(u.weight, 20, 250, 0), height: Math.round(num(u.height, 100, 230, 0)) };
+}
+const users = () => { const u = store.get('users', []); return Array.isArray(u) ? u.map(cleanUser).filter(Boolean) : []; };
+function currentUser() {
+  const all = users(), id = store.get('currentUser', null);
+  return all.find(u => u.id === id) || all[0] || null;
+}
+// Pulso máximo por edad (Tanaka): 208 − 0,7 × edad. Ámbar desde el 85 %, rojo desde el 95 %.
+function hrZones(age) {
+  const max = Math.round(208 - 0.7 * age);
+  return { max, amber: Math.round(max * 0.85), red: Math.round(max * 0.95) };
+}
 const minutesFor = (w) => { const d = store.get('durations', {}); const m = d && d[w.id]; return Number.isFinite(m) && m >= 5 && m <= 240 ? m : baseMinutes(w); };
 
 // ---------- Utilidades UI ----------
@@ -31,7 +49,7 @@ function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
   window.scrollTo(0, 0);
   if (id === 'home') renderHome();
-  if (id === 'history') renderHistory();
+  if (id === 'history') { const u = currentUser(); histFilter = u ? u.id : 'all'; renderHistory(); }
   if (id === 'settings') renderSettings();
 }
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
@@ -124,6 +142,7 @@ bike.addEventListener('log', () => { if ($('settings').classList.contains('activ
 // ---------- Inicio ----------
 function renderHome() {
   connLabel();
+  renderUserRow();
   const list = $('workoutList'); list.innerHTML = '';
   allWorkouts().forEach(w => {
     const min = minutesFor(w);
@@ -139,8 +158,80 @@ function renderHome() {
     list.appendChild(b);
   });
 }
+function chip(text, on, extra) {
+  const c = document.createElement('button');
+  c.className = 'uchip' + (on ? ' on' : '') + (extra ? ' ' + extra : '');
+  c.textContent = text; return c;
+}
+function renderUserRow() {
+  const row = $('userRow'), cur = currentUser();
+  row.replaceChildren();
+  users().forEach(u => {
+    const c = chip(u.name, cur && u.id === cur.id);
+    // Tocar elige; tocar el ya elegido o mantener pulsado abre su ficha.
+    c.addEventListener('click', () => { if (cur && u.id === cur.id) openUser(u); else { store.set('currentUser', u.id); renderUserRow(); } });
+    c.addEventListener('contextmenu', (e) => { e.preventDefault(); openUser(u); });
+    row.appendChild(c);
+  });
+  const add = chip('+ Usuario', false, 'add');
+  add.addEventListener('click', () => openUser(null));
+  row.appendChild(add);
+}
+function needUser() {
+  if (currentUser()) return false;
+  toast('Primero crea tu usuario'); openUser(null); return true;
+}
+
+// ---------- Ficha de usuario ----------
+let editingUser = null;
+function openUser(u) {
+  editingUser = u;
+  const first = !users().length;
+  $('uTitle').textContent = u ? u.name : 'Nuevo usuario';
+  $('uHint').hidden = !(first && historyList().length);
+  $('uName').value = u ? u.name : '';
+  $('uAge').value = u ? u.age : '';
+  $('uWeight').value = u && u.weight ? u.weight : '';
+  $('uHeight').value = u && u.height ? u.height : '';
+  $('uDelete').hidden = !u;
+  renderUserHr(); show('user');
+}
+function renderUserHr() {
+  const age = +$('uAge').value, box = $('uHr');
+  if (!(age >= 5 && age <= 100)) { box.textContent = ''; return; }
+  const z = hrZones(age), b = (t) => { const x = document.createElement('b'); x.textContent = t; return x; };
+  box.replaceChildren('Pulso máximo estimado ', b(z.max), document.createElement('br'), 'ámbar desde ', b(z.amber), ' · rojo desde ', b(z.red));
+}
+$('uAge').addEventListener('input', renderUserHr);
+$('uSave').addEventListener('click', () => {
+  const name = $('uName').value.trim(), age = +$('uAge').value;
+  if (!name) { toast('Pon un nombre'); return; }
+  if (!(age >= 5 && age <= 100)) { toast('Pon una edad entre 5 y 100'); return; }
+  const all = users();
+  if (all.some(x => x.name.toLowerCase() === name.toLowerCase() && (!editingUser || x.id !== editingUser.id))) { toast('Ya hay un usuario con ese nombre'); return; }
+  const u = cleanUser({ id: editingUser ? editingUser.id : 'u' + Date.now(), name, age, weight: $('uWeight').value, height: $('uHeight').value });
+  const i = all.findIndex(x => x.id === u.id);
+  if (i >= 0) all[i] = u; else all.push(u);
+  if (!editingUser && all.length === 1) {
+    // Primer usuario: se queda con el historial que había antes de existir usuarios.
+    store.set('history', historyList().map(e => (e.user ? e : { ...e, user: u.id })));
+  }
+  store.set('users', all);
+  if (!editingUser) store.set('currentUser', u.id);
+  toast('Guardado'); show('home');
+});
+$('uDelete').addEventListener('click', () => {
+  const u = editingUser; if (!u) return;
+  const n = historyList().filter(e => e.user === u.id).length;
+  if (!confirm(`¿Borrar a ${u.name}${n ? ` y sus ${n} entrenamientos del historial` : ''}?`)) return;
+  store.set('users', users().filter(x => x.id !== u.id));
+  store.set('history', historyList().filter(e => e.user !== u.id));
+  if (store.get('currentUser', null) === u.id) { const r = users()[0]; store.set('currentUser', r ? r.id : null); }
+  show('home');
+});
+
 $('newWorkoutBtn').addEventListener('click', () => openEditor(null));
-$('freeRideBtn').addEventListener('click', () => startRide(null, 0));
+$('freeRideBtn').addEventListener('click', () => { if (!needUser()) startRide(null, 0); });
 
 // ---------- Elegir duración ----------
 let sel = null, selMin = 30;
@@ -179,6 +270,7 @@ $('dMinus').addEventListener('click', () => { selMin = Math.max(5, selMin - 5); 
 $('dPlus').addEventListener('click', () => { selMin = Math.min(120, selMin + 5); renderDetail(); });
 $('dEdit').addEventListener('click', () => openEditor(sel));
 $('dStart').addEventListener('click', () => {
+  if (needUser()) return;
   const d = store.get('durations', {}); d[sel.id] = selMin; store.set('durations', d);
   startRide(sel, selMin);
 });
@@ -207,7 +299,9 @@ let ride = null, tick = null;
 
 function startRide(w, minutes) {
   const segs = w ? buildSegments(w, minutes).map(s => ({ ...s, lvl: levelOf(w, s.level, range()) })) : null;
+  const user = currentUser();
   ride = {
+    user, zones: hrZones(user.age), hrZone: '',
     w, segs, total: segs ? minutes * 60 : null,
     elapsed: 0, last: performance.now(), paused: false, segIdx: -1, adj: 0,
     freeLevel: mapLevel(8, range()),
@@ -220,6 +314,7 @@ function startRide(w, minutes) {
   $('pauseSheet').hidden = true;
   $('pauseBtn').textContent = '❚❚ Pausa';
   ['mPow', 'mCad', 'mSpd', 'mDist', 'mKcal', 'mHr'].forEach(id => { $(id).textContent = '–'; });
+  $('mHrBox').className = 'm';
   if (!bike.connected) toast('Bici sin conectar: toca arriba a la izquierda');
   else bike.start().catch(() => {});
   keepAwake();
@@ -317,7 +412,19 @@ bike.addEventListener('data', (ev) => {
   $('mDist').textContent = (ride.dist / 1000).toFixed(2);
   $('mKcal').textContent = Math.round(ride.kcal);
   $('mHr').textContent = L.hr > 0 ? L.hr : '–';
+  setHrZone(L.hr);
 });
+
+// Color del pulso. Para no parpadear en el límite, solo baja de zona 3 ppm por debajo.
+function setHrZone(hr) {
+  const z = ride.zones, cur = ride.hrZone;
+  let next = '';
+  if (hr > 0) {
+    if (hr >= z.red || (cur === 'red' && hr > z.red - 3)) next = 'red';
+    else if (hr >= z.amber || (cur && hr > z.amber - 3)) next = 'amber';
+  }
+  if (next !== cur) { ride.hrZone = next; $('mHrBox').className = 'm' + (next ? ' ' + next : ''); }
+}
 
 function nudge(d) {
   if (!ride) return;
@@ -351,7 +458,7 @@ function finishRide(save) {
   if (!save || !r || r.elapsed < 30) { show('home'); if (save) toast('Demasiado corto para guardarlo'); return; }
   beep(1200, 500);
   const entry = {
-    date: r.startedAt.toISOString(), name: r.w ? r.w.name : 'Rodar libre',
+    user: r.user ? r.user.id : '', date: r.startedAt.toISOString(), name: r.w ? r.w.name : 'Rodar libre',
     sec: Math.round(r.elapsed), km: +(r.dist / 1000).toFixed(2), kcal: Math.round(r.kcal),
     avgW: r.n ? Math.round(r.powSum / r.n) : 0, maxW: Math.max(0, r.maxPow),
     avgRpm: r.n ? Math.round(r.cadSum / r.n) : 0, avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : 0,
@@ -369,21 +476,34 @@ function finishRide(save) {
 function historyList() {
   const h = store.get('history', []);
   return Array.isArray(h) ? h.filter(e => e && typeof e === 'object').map(e => ({
-    date: String(e.date), name: String(e.name ?? '').slice(0, 40), sec: num(e.sec, 0, 1e6, 0), km: num(e.km, 0, 1e4, 0),
+    user: String(e.user ?? '').slice(0, 40), date: String(e.date), name: String(e.name ?? '').slice(0, 40), sec: num(e.sec, 0, 1e6, 0), km: num(e.km, 0, 1e4, 0),
     kcal: num(e.kcal, 0, 1e5, 0), avgW: num(e.avgW, 0, 5000, 0), maxW: num(e.maxW, 0, 5000, 0),
     avgRpm: num(e.avgRpm, 0, 500, 0), avgHr: num(e.avgHr, 0, 300, 0),
   })) : [];
 }
+let histFilter = 'all';
 function renderHistory() {
+  const all = users(), names = Object.fromEntries(all.map(u => [u.id, u.name]));
+  const fb = $('histFilter'); fb.replaceChildren();
+  if (!all.some(u => u.id === histFilter)) histFilter = 'all';
+  [['all', 'Todos']].concat(all.map(u => [u.id, u.name])).forEach(([id, label]) => {
+    const c = chip(label, id === histFilter);
+    c.addEventListener('click', () => { histFilter = id; renderHistory(); });
+    fb.appendChild(c);
+  });
+  fb.hidden = all.length < 2;
   const list = $('histList'); list.innerHTML = '';
   const h = historyList();
-  if (!h.length) { list.innerHTML = '<div class="empty">Aún no hay entrenamientos</div>'; return; }
-  h.forEach((e, idx) => {
+  const shown = h.map((e, idx) => [e, idx]).filter(([e]) => histFilter === 'all' || e.user === histFilter);
+  if (!shown.length) { list.innerHTML = '<div class="empty">Aún no hay entrenamientos</div>'; return; }
+  shown.forEach(([e, idx]) => {
     const d = document.createElement('div'); d.className = 'h';
     const date = new Date(e.date).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     d.innerHTML = '<div class="t"></div><div class="d"></div>';
     d.querySelector('.t').textContent = `${e.name} · ${fmt(e.sec)}`;
-    d.querySelector('.d').textContent = `${date} · ${e.km.toFixed(2)} km · ${e.kcal} kcal · ${e.avgW} W med · ${e.avgRpm} rpm${e.avgHr ? ' · ❤ ' + e.avgHr : ''}`;
+    const d2 = d.querySelector('.d');
+    if (names[e.user]) { const w = document.createElement('span'); w.className = 'who'; w.textContent = names[e.user]; d2.append(w); }
+    d2.append(`${date} · ${e.km.toFixed(2)} km · ${e.kcal} kcal · ${e.avgW} W med · ${e.avgRpm} rpm${e.avgHr ? ' · ❤ ' + e.avgHr : ''}`);
     d.addEventListener('click', () => {
       if (confirm('¿Borrar este entrenamiento del historial?')) { h.splice(idx, 1); store.set('history', h); renderHistory(); }
     });
@@ -482,6 +602,7 @@ setInterval(() => { if ($('settings').classList.contains('active')) renderSettin
 
 // ---------- Arranque ----------
 renderHome();
+if (!users().length) openUser(null);
 // Reconexión silenciosa a la última bici (no bloquea el botón).
 if (FtmsBike.supported()) bike.tryRemembered().catch(() => {}).finally(() => {
   connecting = false; connLabel();

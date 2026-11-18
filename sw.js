@@ -1,5 +1,5 @@
 // Red primero (para recibir actualizaciones), caché si no hay conexión.
-const CACHE = 'bici-v8';
+const CACHE = 'bici-v9';
 const FILES = ['./', 'index.html', 'style.css', 'iconsole.js', 'ftms.js', 'workouts.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
