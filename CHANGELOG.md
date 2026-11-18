@@ -13,3 +13,6 @@
   guarda con su usuario y el historial se puede filtrar por usuario.
 - El recuadro del pulso se pone ámbar (≥ 85 % del pulso máximo) o rojo (≥ 95 %), con el máximo
   calculado por la edad del usuario (208 − 0,7 × edad).
+- Vídeos para aprender mientras pedaleas: lista de historia y ciencia de unos 15 min, se elige
+  uno en el entreno y se ve arriba en la pantalla (la pausa también pausa el vídeo). Se pueden
+  añadir vídeos propios pegando un enlace de YouTube.

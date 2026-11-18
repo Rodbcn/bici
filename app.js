@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '9';
+const APP_VERSION = '10';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -41,6 +41,40 @@ function currentUser() {
 function hrZones(age) {
   const max = Math.round(208 - 0.7 * age);
   return { max, amber: Math.round(max * 0.85), red: Math.round(max * 0.95) };
+}
+// ---------- Vídeos ----------
+const YT_ID = /^[\w-]{11}$/;
+function cleanVideo(v) {
+  if (!v || typeof v !== 'object' || !YT_ID.test(String(v.id))) return null;
+  return { id: String(v.id), title: String(v.title ?? '').trim().slice(0, 80) || 'Vídeo',
+    min: num(v.min, 1, 240, 15), topic: VIDEO_TOPICS[v.topic] ? v.topic : 'otros',
+    channel: String(v.channel ?? '').slice(0, 40), custom: !!v.custom };
+}
+function extractYouTubeId(text) {
+  const s = String(text || '').trim();
+  if (YT_ID.test(s)) return s;
+  let u; try { u = new URL(s); } catch (e) { return null; }
+  const host = u.hostname.replace(/^(www|m|music)\./, '');
+  let id = null;
+  if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    id = u.searchParams.get('v');
+    const m = u.pathname.match(/^\/(shorts|embed|live)\/([\w-]{11})/);
+    if (!id && m) id = m[2];
+  }
+  return id && YT_ID.test(id) ? id : null;
+}
+const customVideos = () => { const v = store.get('videos', []); return Array.isArray(v) ? v.map(x => cleanVideo({ ...x, custom: true })).filter(Boolean) : []; };
+const allVideos = () => BUILTIN_VIDEOS.map(cleanVideo).filter(Boolean).concat(customVideos());
+const fmtMin = (m) => fmt(Math.round(m * 60));
+// Los que encajan con la duración del entreno (±3 min), del más cercano al más lejano; si no hay, todos.
+function videosFor(minutes, topic) {
+  let v = allVideos().filter(x => topic === 'all' || x.topic === topic);
+  if (minutes) {
+    const near = v.filter(x => Math.abs(x.min - minutes) <= 3);
+    v = (near.length ? near : v).sort((a, b) => Math.abs(a.min - minutes) - Math.abs(b.min - minutes));
+  }
+  return v;
 }
 const minutesFor = (w) => { const d = store.get('durations', {}); const m = d && d[w.id]; return Number.isFinite(m) && m >= 5 && m <= 240 ? m : baseMinutes(w); };
 
@@ -230,13 +264,85 @@ $('uDelete').addEventListener('click', () => {
   show('home');
 });
 
+// ---------- Pantalla de vídeos (ver la lista, o elegir uno para el entreno) ----------
+let vPick = null, vTopic = 'all';  // vPick: { minutes } cuando se elige para un entreno
+function openVideos(pick) {
+  vPick = pick; vTopic = 'all';
+  $('vTitle').textContent = pick ? `Elige un vídeo (${pick.minutes} min)` : 'Vídeos';
+  $('vBack').textContent = pick ? '‹ Volver' : '‹ Entrenamientos';
+  $('vAddBtn').hidden = !!pick; $('vForm').hidden = true;
+  renderVideos(); show('videos');
+}
+function videoCard(v, on) {
+  const c = document.createElement('button'); c.className = 'vc' + (on ? ' on' : '');
+  const th = document.createElement('div'); th.className = 'th';
+  if (v) {
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = '';
+    img.src = `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`; img.onerror = () => img.remove();
+    const b = document.createElement('span'); b.textContent = fmtMin(v.min);
+    th.append(img, b);
+  } else { const b = document.createElement('span'); b.textContent = '—'; th.append(b); }
+  const info = document.createElement('div'); info.className = 'info';
+  const t = document.createElement('div'); t.className = 't'; t.textContent = v ? v.title : 'Sin vídeo';
+  const d = document.createElement('div'); d.className = 'd';
+  d.textContent = v ? `${VIDEO_TOPICS[v.topic]} · ${v.custom ? 'Añadido por ti' : v.channel}` : 'Solo el entreno';
+  info.append(t, d); c.append(th, info);
+  return c;
+}
+function renderVideos() {
+  const tb = $('vTopics'); tb.replaceChildren();
+  const topics = ['all'].concat(Object.keys(VIDEO_TOPICS).filter(k => allVideos().some(v => v.topic === k)));
+  topics.forEach(k => {
+    const c = chip(k === 'all' ? 'Todos' : VIDEO_TOPICS[k], k === vTopic);
+    c.addEventListener('click', () => { vTopic = k; renderVideos(); });
+    tb.appendChild(c);
+  });
+  const list = $('vList'); list.replaceChildren();
+  if (vPick) {
+    const none = videoCard(null, !selVideo);
+    none.addEventListener('click', () => { selVideo = null; openDetail(sel, true); });
+    list.appendChild(none);
+  }
+  const vids = videosFor(vPick ? vPick.minutes : null, vTopic);
+  if (!vids.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No hay vídeos'; list.appendChild(e); }
+  vids.forEach(v => {
+    const c = videoCard(v, vPick && selVideo && selVideo.id === v.id);
+    if (vPick) c.addEventListener('click', () => { selVideo = v; openDetail(sel, true); });
+    if (!vPick && v.custom) {
+      const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕';
+      x.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm(`¿Quitar «${v.title}»?`)) return;
+        store.set('videos', customVideos().filter(y => y.id !== v.id)); renderVideos();
+      });
+      c.appendChild(x);
+    }
+    list.appendChild(c);
+  });
+}
+$('videosBtn').addEventListener('click', () => openVideos(null));
+$('vBack').addEventListener('click', () => { if (vPick) openDetail(sel, true); else show('home'); });
+$('vAddBtn').addEventListener('click', () => { $('vForm').hidden = false; $('vUrl').focus(); });
+$('vSave').addEventListener('click', () => {
+  const id = extractYouTubeId($('vUrl').value);
+  if (!id) { toast('Ese enlace no es de un vídeo de YouTube'); return; }
+  const min = +$('vMin').value;
+  if (!(min >= 1 && min <= 240)) { toast('Pon la duración en minutos'); return; }
+  const v = cleanVideo({ id, title: $('vName').value, min, topic: $('vTopic').value, custom: true });
+  const list = customVideos().filter(x => x.id !== id); list.push(v);
+  store.set('videos', list.map(({ custom, ...x }) => x));
+  ['vUrl', 'vName', 'vMin'].forEach(k => { $(k).value = ''; });
+  $('vForm').hidden = true; toast('Vídeo añadido'); renderVideos();
+});
+
 $('newWorkoutBtn').addEventListener('click', () => openEditor(null));
 $('freeRideBtn').addEventListener('click', () => { if (!needUser()) startRide(null, 0); });
 
 // ---------- Elegir duración ----------
-let sel = null, selMin = 30;
-function openDetail(w) {
-  sel = w; selMin = minutesFor(w);
+let sel = null, selMin = 30, selVideo = null;
+function openDetail(w, keep) {
+  if (!keep) { selVideo = null; selMin = minutesFor(w); }
+  sel = w;
   $('dTitle').textContent = w.name;
   $('dEdit').hidden = !w.custom;
   renderDetail(); show('detail');
@@ -254,6 +360,7 @@ function renderDetail() {
   drawBars($('dBars'), segs, sel);
   $('dCount').textContent = segs.length + ' tramos';
   $('dEnd').textContent = fmt(selMin * 60);
+  $('dVideoName').textContent = selVideo ? `${selVideo.title} · ${fmtMin(selVideo.min)}` : 'Ninguno';
   const list = $('dList'); list.innerHTML = '';
   const row = (a, b) => { const d = document.createElement('div'); d.innerHTML = '<span></span><b></b>'; d.firstChild.textContent = a; d.lastChild.textContent = b; list.appendChild(d); };
   const L = (l) => levelOf(sel, l, range());
@@ -269,10 +376,11 @@ function renderDetail() {
 $('dMinus').addEventListener('click', () => { selMin = Math.max(5, selMin - 5); renderDetail(); });
 $('dPlus').addEventListener('click', () => { selMin = Math.min(120, selMin + 5); renderDetail(); });
 $('dEdit').addEventListener('click', () => openEditor(sel));
+$('dVideo').addEventListener('click', () => openVideos({ minutes: selMin }));
 $('dStart').addEventListener('click', () => {
   if (needUser()) return;
   const d = store.get('durations', {}); d[sel.id] = selMin; store.set('durations', d);
-  startRide(sel, selMin);
+  startRide(sel, selMin, selVideo);
 });
 
 // ---------- Sonido y pantalla ----------
@@ -297,11 +405,28 @@ document.addEventListener('visibilitychange', () => { if (ride && document.visib
 // ---------- Entrenando ----------
 let ride = null, tick = null;
 
-function startRide(w, minutes) {
+// El vídeo va en un iframe de youtube-nocookie y se controla con postMessage (sin scripts externos).
+const YT_ORIGIN = 'https://www.youtube-nocookie.com';
+function setVideo(v) {
+  const box = $('rVideo'); box.replaceChildren();
+  box.hidden = !v; $('ride').classList.toggle('withvideo', !!v);
+  if (!v) return;
+  const f = document.createElement('iframe');
+  f.src = `${YT_ORIGIN}/embed/${v.id}?enablejsapi=1&playsinline=1&autoplay=1&rel=0&origin=${encodeURIComponent(location.origin)}`;
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  f.title = v.title; f.referrerPolicy = 'strict-origin-when-cross-origin';
+  box.appendChild(f);
+}
+function videoCmd(func) {
+  const f = $('rVideo').querySelector('iframe');
+  if (f && f.contentWindow) f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: [] }), YT_ORIGIN);
+}
+
+function startRide(w, minutes, video) {
   const segs = w ? buildSegments(w, minutes).map(s => ({ ...s, lvl: levelOf(w, s.level, range()) })) : null;
   const user = currentUser();
   ride = {
-    user, zones: hrZones(user.age), hrZone: '',
+    user, zones: hrZones(user.age), hrZone: '', video: video || null,
     w, segs, total: segs ? minutes * 60 : null,
     elapsed: 0, last: performance.now(), paused: false, segIdx: -1, adj: 0,
     freeLevel: mapLevel(8, range()),
@@ -315,6 +440,7 @@ function startRide(w, minutes) {
   $('pauseBtn').textContent = '❚❚ Pausa';
   ['mPow', 'mCad', 'mSpd', 'mDist', 'mKcal', 'mHr'].forEach(id => { $(id).textContent = '–'; });
   $('mHrBox').className = 'm';
+  setVideo(video || null);
   if (!bike.connected) toast('Bici sin conectar: toca arriba a la izquierda');
   else bike.start().catch(() => {});
   keepAwake();
@@ -438,13 +564,13 @@ $('lvlDown').addEventListener('click', () => nudge(-1));
 
 $('pauseBtn').addEventListener('click', () => {
   if (!ride) return;
-  ride.paused = true; $('pauseSheet').hidden = false;
+  ride.paused = true; $('pauseSheet').hidden = false; videoCmd('pauseVideo');
   if (bike.connected) Promise.resolve(bike.pause()).catch(() => {});
 });
 $('resumeBtn').addEventListener('click', () => {
   ride.paused = false; ride.last = performance.now(); lastSent = null;
   if (bike.connected) Promise.resolve(bike.resume()).catch(() => {});
-  $('pauseSheet').hidden = true; loop();
+  $('pauseSheet').hidden = true; videoCmd('playVideo'); loop();
 });
 $('finishBtn').addEventListener('click', () => finishRide(true));
 $('discardBtn').addEventListener('click', () => { if (confirm('¿Descartar este entrenamiento?')) finishRide(false); });
@@ -454,6 +580,7 @@ function finishRide(save) {
   const r = ride; ride = null; lastSent = null;
   if (bike.connected) Promise.resolve(bike.stop()).catch(() => {});
   $('pauseSheet').hidden = true;
+  setVideo(null);
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   if (!save || !r || r.elapsed < 30) { show('home'); if (save) toast('Demasiado corto para guardarlo'); return; }
   beep(1200, 500);
@@ -462,6 +589,7 @@ function finishRide(save) {
     sec: Math.round(r.elapsed), km: +(r.dist / 1000).toFixed(2), kcal: Math.round(r.kcal),
     avgW: r.n ? Math.round(r.powSum / r.n) : 0, maxW: Math.max(0, r.maxPow),
     avgRpm: r.n ? Math.round(r.cadSum / r.n) : 0, avgHr: r.hrN ? Math.round(r.hrSum / r.hrN) : 0,
+    video: r.video ? r.video.title : '',
   };
   const h = historyList(); h.unshift(entry); store.set('history', h.slice(0, 500));
   const g = $('sumGrid'); g.innerHTML = '';
@@ -478,7 +606,7 @@ function historyList() {
   return Array.isArray(h) ? h.filter(e => e && typeof e === 'object').map(e => ({
     user: String(e.user ?? '').slice(0, 40), date: String(e.date), name: String(e.name ?? '').slice(0, 40), sec: num(e.sec, 0, 1e6, 0), km: num(e.km, 0, 1e4, 0),
     kcal: num(e.kcal, 0, 1e5, 0), avgW: num(e.avgW, 0, 5000, 0), maxW: num(e.maxW, 0, 5000, 0),
-    avgRpm: num(e.avgRpm, 0, 500, 0), avgHr: num(e.avgHr, 0, 300, 0),
+    avgRpm: num(e.avgRpm, 0, 500, 0), avgHr: num(e.avgHr, 0, 300, 0), video: String(e.video ?? '').slice(0, 80),
   })) : [];
 }
 let histFilter = 'all';
@@ -503,7 +631,7 @@ function renderHistory() {
     d.querySelector('.t').textContent = `${e.name} · ${fmt(e.sec)}`;
     const d2 = d.querySelector('.d');
     if (names[e.user]) { const w = document.createElement('span'); w.className = 'who'; w.textContent = names[e.user]; d2.append(w); }
-    d2.append(`${date} · ${e.km.toFixed(2)} km · ${e.kcal} kcal · ${e.avgW} W med · ${e.avgRpm} rpm${e.avgHr ? ' · ❤ ' + e.avgHr : ''}`);
+    d2.append(`${date} · ${e.km.toFixed(2)} km · ${e.kcal} kcal · ${e.avgW} W med · ${e.avgRpm} rpm${e.avgHr ? ' · ❤ ' + e.avgHr : ''}${e.video ? ' · 🎬 ' + e.video : ''}`);
     d.addEventListener('click', () => {
       if (confirm('¿Borrar este entrenamiento del historial?')) { h.splice(idx, 1); store.set('history', h); renderHistory(); }
     });

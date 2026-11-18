@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://i.ytimg.com; frame-src https://www.youtube-nocookie.com; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#ffffff">
 <title>Bici</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
@@ -24,6 +24,7 @@
   <button class="dashed" id="freeRideBtn">Rodar libre (sin programa)</button>
   <div class="btns bottom">
     <button class="b" data-go="history">Historial</button>
+    <button class="b" id="videosBtn">Vídeos</button>
     <button class="b" data-go="settings">Ajustes</button>
   </div>
 </section>
@@ -43,6 +44,7 @@
     <div class="times"><span>0:00</span><span id="dCount"></span><span id="dEnd"></span></div>
   </div>
   <div class="tl" id="dList"></div>
+  <button class="vrow" id="dVideo"><span>🎬 Vídeo</span><span><b id="dVideoName">Ninguno</b> ›</span></button>
   <div class="btns bottom">
     <button class="b" id="dEdit" hidden>Editar</button>
     <button class="b p" id="dStart">▶ Empezar</button>
@@ -52,6 +54,7 @@
 <!-- ENTRENANDO -->
 <section id="ride" class="screen">
   <div class="top"><span id="rConn"><span class="dot"></span>—</span><span id="rName"></span><span></span></div>
+  <div class="vid" id="rVideo" hidden></div>
   <div class="card seg">
     <div class="label" id="rSegLabel"></div>
     <div class="segrow"><div class="lvl"><span id="rLvl">–</span><small id="rLvlMax"></small></div><div class="cdbox"><div class="cd" id="rCd"></div><div class="tot" id="rTot"></div></div></div>
@@ -98,6 +101,24 @@
   <h1>Historial</h1>
   <div class="users" id="histFilter"></div>
   <div id="histList"></div>
+</section>
+
+<!-- VÍDEOS -->
+<section id="videos" class="screen">
+  <button class="back" id="vBack">‹ Entrenamientos</button>
+  <h1 id="vTitle">Vídeos</h1>
+  <div class="users" id="vTopics"></div>
+  <div id="vList"></div>
+  <button class="dashed" id="vAddBtn">+ Añadir vídeo</button>
+  <div class="card" id="vForm" hidden>
+    <input id="vUrl" class="input" placeholder="Enlace de YouTube" inputmode="url" autocomplete="off">
+    <input id="vName" class="input" placeholder="Título" maxlength="80" autocomplete="off">
+    <div class="f3">
+      <label><span class="fl">Minutos</span><input id="vMin" class="input" type="number" inputmode="decimal" min="1" max="240" step="0.5"></label>
+      <label><span class="fl">Tema</span><select id="vTopic" class="input"><option value="historia">Historia</option><option value="ciencia">Ciencia</option><option value="otros">Otros</option></select></label>
+    </div>
+    <button class="b p wide" id="vSave">Guardar vídeo</button>
+  </div>
 </section>
 
 <!-- USUARIO -->
@@ -147,9 +168,10 @@
 </section>
 
 <div id="toast" hidden></div>
-<script src="iconsole.js?v=9"></script>
-<script src="ftms.js?v=9"></script>
-<script src="workouts.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="iconsole.js?v=10"></script>
+<script src="ftms.js?v=10"></script>
+<script src="workouts.js?v=10"></script>
+<script src="videos.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
