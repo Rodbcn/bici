@@ -60,6 +60,8 @@ h2{font-size:22px;margin-bottom:12px}
 .lvl{font-size:64px;font-weight:800;line-height:1;color:var(--acc);font-variant-numeric:tabular-nums}
 .lvl small{font-size:16px;color:var(--muted);font-weight:600;margin-left:4px}
 .cd{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums}
+.cdbox{text-align:right}
+.tot{font-size:20px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
 .next{font-size:13px;color:var(--muted);margin-top:8px;min-height:1em}
 .next b{color:var(--text)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}

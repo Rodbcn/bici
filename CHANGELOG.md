@@ -7,3 +7,5 @@
   cambia el nivel de resistencia y lee la telemetría. FTMS queda como respaldo.
 - Seguridad: el nombre Bluetooth y los datos guardados ya no se interpretan como HTML; política
   CSP que solo permite código propio; datos guardados validados; nivel enviado a la bici acotado.
+- Pantalla de entreno: el pulso ocupa el recuadro que antes mostraba el tiempo, y el tiempo total
+  aparece debajo del tiempo restante del tramo.

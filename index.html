@@ -9,7 +9,7 @@
 <title>Bici</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -50,10 +50,10 @@
 
 <!-- ENTRENANDO -->
 <section id="ride" class="screen">
-  <div class="top"><span id="rConn"><span class="dot"></span>—</span><span id="rName"></span><span id="rHr"></span></div>
+  <div class="top"><span id="rConn"><span class="dot"></span>—</span><span id="rName"></span><span></span></div>
   <div class="card seg">
     <div class="label" id="rSegLabel"></div>
-    <div class="segrow"><div class="lvl"><span id="rLvl">–</span><small id="rLvlMax"></small></div><div class="cd" id="rCd"></div></div>
+    <div class="segrow"><div class="lvl"><span id="rLvl">–</span><small id="rLvlMax"></small></div><div class="cdbox"><div class="cd" id="rCd"></div><div class="tot" id="rTot"></div></div></div>
     <div class="next" id="rNext"></div>
   </div>
   <div class="grid">
@@ -62,7 +62,7 @@
     <div class="m"><div class="l">Velocidad</div><div class="v"><span id="mSpd">–</span> <span class="u">km/h</span></div></div>
     <div class="m"><div class="l">Distancia</div><div class="v"><span id="mDist">–</span> <span class="u">km</span></div></div>
     <div class="m"><div class="l">Calorías</div><div class="v"><span id="mKcal">–</span> <span class="u">kcal</span></div></div>
-    <div class="m"><div class="l">Tiempo</div><div class="v" id="mTime">0:00</div></div>
+    <div class="m"><div class="l">Pulso</div><div class="v"><span id="mHr">–</span> <span class="u">ppm</span></div></div>
   </div>
   <div class="card prof" id="rProf">
     <div class="label">Perfil</div>
@@ -127,9 +127,9 @@
 </section>
 
 <div id="toast" hidden></div>
-<script src="iconsole.js?v=7"></script>
-<script src="ftms.js?v=7"></script>
-<script src="workouts.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="iconsole.js?v=8"></script>
+<script src="ftms.js?v=8"></script>
+<script src="workouts.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

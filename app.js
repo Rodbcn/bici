@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '7';
+const APP_VERSION = '8';
 
 const $ = (id) => document.getElementById(id);
 const bike = new FtmsBike();
@@ -219,7 +219,7 @@ function startRide(w, minutes) {
   $('rProf').hidden = !segs;
   $('pauseSheet').hidden = true;
   $('pauseBtn').textContent = '❚❚ Pausa';
-  ['mPow', 'mCad', 'mSpd', 'mDist', 'mKcal'].forEach(id => { $(id).textContent = '–'; });
+  ['mPow', 'mCad', 'mSpd', 'mDist', 'mKcal', 'mHr'].forEach(id => { $(id).textContent = '–'; });
   if (!bike.connected) toast('Bici sin conectar: toca arriba a la izquierda');
   else bike.start().catch(() => {});
   keepAwake();
@@ -262,7 +262,6 @@ function loop() {
     if (L.hr > 0) { ride.hrSum += L.hr * dt; ride.hrN += dt; }
   }
   const t = ride.elapsed;
-  $('mTime').textContent = fmt(t);
 
   if (ride.segs) {
     if (t >= ride.total) { finishRide(true); return; }
@@ -277,6 +276,7 @@ function loop() {
     const s = ride.segs[i], nx = ride.segs[i + 1];
     $('rSegLabel').textContent = (s.label.startsWith('Tramo') ? '' : s.label + ' · ') + `tramo ${i + 1} de ${ride.segs.length} · nivel`;
     $('rCd').textContent = fmt(left);
+    $('rTot').textContent = 'total ' + fmt(t);
     if (nx) { const b = document.createElement('b'); b.textContent = `nivel ${bike.clampLevel(nx.lvl)} · ${fmt(nx.sec)}`; $('rNext').replaceChildren('Siguiente: ', b); }
     else $('rNext').textContent = 'Último tramo';
     drawBars($('rBars'), ride.segs.map(x => ({ sec: x.sec, level: x.lvl })), { absolute: true }, { cur: i, at: t });
@@ -285,6 +285,7 @@ function loop() {
   } else {
     $('rSegLabel').textContent = 'Rodar libre · nivel';
     $('rCd').textContent = fmt(t);
+    $('rTot').textContent = '';
     $('rNext').textContent = '';
   }
   const target = currentTarget();
@@ -315,7 +316,7 @@ bike.addEventListener('data', (ev) => {
   if (r.speed != null) $('mSpd').textContent = r.speed.toFixed(1);
   $('mDist').textContent = (ride.dist / 1000).toFixed(2);
   $('mKcal').textContent = Math.round(ride.kcal);
-  $('rHr').textContent = L.hr > 0 ? '❤ ' + L.hr : '';
+  $('mHr').textContent = L.hr > 0 ? L.hr : '–';
 });
 
 function nudge(d) {
